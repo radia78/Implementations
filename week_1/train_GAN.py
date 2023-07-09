@@ -105,11 +105,18 @@ def train(
 
         print(f"Epoch {epoch} | Avg G_loss: {sum(G_loss)/len(G_loss)} | Avg D_loss: {sum(D_loss)/len(D_loss)}")
 
-        if epoch % 100 == 0:
+        if epoch + 1 % 25 == 0:
+            # save the dictionary
             checkpoint = G.state_dict()
             PATH = "checkpoint.pt"
             torch.save(checkpoint, PATH)
             print(f"Epoch {epoch} | Training checkpoint saved at {PATH}")
+            
+            # save the image results
+            G.eval()
+            gen_img = G(torch.randn(128), 0.2)
+            plt.imsave(f"{epoch}-result.png", gen_img.reshape(28, 28).detach(), cmap="gray")
+            
 
 def main(gpu, total_epochs, batch_size):
     train_dataset, generator, discriminator, D_optimizer, G_optimizer = load_training_objects()
@@ -123,5 +130,5 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', default=32, type=int, help='Input batch size on each device (default: 32)')
     args = parser.parse_args()
     
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # its 'mps' for mac m1
     main(device, args.epochs, args.batch_size)

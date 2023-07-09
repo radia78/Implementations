@@ -1,0 +1,1 @@
+![alt text](https://github.com/radia78/Text2Image/week_1/gen_img_25.png?raw=true)
