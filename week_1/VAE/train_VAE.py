@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision import transforms
+from matplotlib import pyplot as plt
 from vae_implementation import *
 
 def load_training_objects():
@@ -79,7 +80,7 @@ def train(
 
         print(f"Epoch {epoch} | Avg Model Loss: {avg_model_loss} |Avg KLD Loss: {avg_kld_loss} | Avg Recons Loss: {avg_recons_loss}")
 
-        if epoch + 1 % 25 == 0:
+        if (epoch + 1) % 25 == 0:
             # save the dictionary
             checkpoint = model.state_dict()
             PATH = "checkpoint.pt"
@@ -88,8 +89,8 @@ def train(
 
             # save the image results
             model.eval()
-            dec_img = model(x_real)
-            plt.imsave(f"{epoch}-result.png", dec_img.reshape(28, 28).detach(), cmap="gray")
+            dec_img, _, _ = model(x_real[0])
+            plt.imsave(f"{epoch}-result.png", dec_img.reshape(28, 28).cpu().detach(), cmap="gray")
             
 def main(gpu, total_epochs, batch_size):
     train_dataset, model, optimizer = load_training_objects()
