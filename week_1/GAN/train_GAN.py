@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision import transforms
-from GAN.gan_implementation import *
+from gan_implementation import *
 
 def load_training_objects():
     # load the MNIST handwritten dataset
@@ -18,7 +18,7 @@ def load_training_objects():
     )
     # load the model
     # hidden dimension = 256, latent space size = 128, flattened image size = 28**2
-    generator = Generator(g_input_dim=128, h_input_dim=256, g_out_dim=28**2)
+    generator = Generator(g_input_dim=100, h_input_dim=256, g_out_dim=28**2)
     discriminator = Discriminator(d_input_dim=28**2, h_input_dim=256, dropout=0.1)
 
     # load the optimizer
@@ -35,7 +35,7 @@ def D_train(x_real, D_optimizer, D, G):
     D_optimizer.zero_grad(set_to_none=True)
 
     # load the dummy data
-    fake_inputs = torch.randn(x_real.shape[0], 128, device=device)
+    fake_inputs = torch.randn(x_real.shape[0], 100, device=device)
     real_labels = torch.ones(x_real.shape[0], 1, device=device)
 
     # train the discriminator
@@ -58,7 +58,7 @@ def G_train(G_optimizer, D, G, batch_size):
     G_optimizer.zero_grad(set_to_none=True)
 
     # load the dummy data
-    fake_inputs = torch.randn(batch_size, 128, device=device)
+    fake_inputs = torch.randn(batch_size, 100, device=device)
     real_labels = torch.ones(batch_size, 1, device=device)
 
     # train the discriminator
