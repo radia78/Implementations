@@ -1,8 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 # the base trainer for future classes
 class TrainerBase:
@@ -38,20 +37,11 @@ class TrainerBase:
         
         print(f"Epoch {epoch} | Avg Model Loss: {sum(losses)/self.n_samples}")
     
-    def _save_checkpoint(self, epoch: int, path: str, save_img: bool):
+    def _save_checkpoint(self, epoch: int, path: str):
         # save the model
         checkpoint = self.model.state_dict()
         torch.save(checkpoint, path)
         print(f"Epoch {epoch} | Training checkpoint saved at {path}")
-
-        # generate the image
-        if save_img:
-            source, _ = next(iter(self.train_data))
-            output_img = self._generate_img(self.model, source[0])
-            plt.imsave(f"imgs/{epoch}-result.png", output_img, cmap="gray")
-
-    def _generate_img(inputs):
-        raise NotImplementedError
     
     def train(self, max_epochs: int, chkpt_path: str, save_img: bool=True):
         for epoch in range(max_epochs):
@@ -105,12 +95,6 @@ class TrainerVAE(TrainerBase):
 
         return model_loss
     
-    def _generate_img(self, inputs):
-        self.model.eval() # turn off training mode
-        dec_img, _, _ = self.model(inputs) # generate image output
-
-        return dec_img.cpu().detach()
-    
 # the trainer for GAN models
 class TrainerGAN(TrainerBase):
     def __init__(
@@ -154,7 +138,7 @@ class TrainerGAN(TrainerBase):
 
         # train the discriminator
         G_fake_output = self.model(fake_inputs) # data generated from generator
-        D_fake_output = self.D_modelD(G_fake_output) # fake logits from discriminator
+        D_fake_output = self.D_model(G_fake_output) # fake logits from discriminator
         D_real_output = self.D_model(source) # real logits from discriminator
         D_loss = self._criterion(
             D_real_output,
@@ -196,9 +180,3 @@ class TrainerGAN(TrainerBase):
         model_loss = self._G_train(source)
 
         return model_loss
-
-    def _generate_img(self):
-        self.model.eval()
-        gen_img = self.model(torch.randn(1, 100, device=self.device))
-
-        return gen_img.cpu().detach()
