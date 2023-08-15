@@ -20,7 +20,7 @@ def train(args):
     logger = SummaryWriter(os.path.join("runs", args.run_name))
     l = len(dataloader)
 
-    for epoch in range(args.epoch):
+    for epoch in range(args.epochs):
         logging.info(f"Starting epoch {epoch}:")
         pbar = tqdm(dataloader)
         for i, (images, _) in enumerate(pbar):
@@ -29,14 +29,14 @@ def train(args):
             x_t, noise = diffusion.forward_process(images, t)
             predicted_noise = model(x_t, t)
             loss = mse(noise, predicted_noise)
-            
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             pbar.set_postfix(MSE=loss.item())
             logger.add_scalar("MSE", loss.item(), global_step=epoch * l + i)
-        
+
         sampled_images = diffusion.sample(model, n=images.shape[0])
         save_images(sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg"))
         torch.save(model.state_dict(), os.path.join("models", args.run_name, f"ckpt.pt"))
@@ -48,7 +48,7 @@ def launch():
     args.run_name = "DDPM_Uncoditional"
     args.epochs = 500
     args.batch_size = 12
-    args.image_size = 64
+    args.img_size = 64
     args.device = "cuda"
     args.lr = 3e-4
     train(args)
