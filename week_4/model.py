@@ -1,6 +1,7 @@
 import torch
 import tqdm
 import logging
+import numpy as np
 
 """
 Diffusion model implementation from https://github.com/dome272/Diffusion-Models-pytorch

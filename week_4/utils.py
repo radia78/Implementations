@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data import DistributedSampler
 import torchvision
 import os
 from torch.utils.data import DataLoader
@@ -24,7 +25,12 @@ def get_data(args):
         torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     dataset = torchvision.datasets.CIFAR10(transform=transforms, download=True, root="cifar10")
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=args.batch_size,
+        sampler=DistributedSampler(dataset) if args.ddp else None,
+        shuffle=False if args.ddp else True
+    )
     return dataloader
 
 def setup_logging(run_name):
