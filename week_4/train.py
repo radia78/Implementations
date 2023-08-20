@@ -15,14 +15,14 @@ import torch.multiprocessing as mp
 
 from utils import plot_images, save_images, setup_logging, get_data
 
-def ddp_setup(rank: int, world_size: int):
+LOCAL_RANK = int(os.environ['LOCAL_RANK'])
+WORLD_SIZE = int(os.environ['WORLD_SIZE'])
+
+def ddp_setup():
     """
     Declare the master address for the machine w rank 0
     """
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
-    init_process_group(backend='nccl', rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
+    init_process_group(backend='nccl')
 
 def train(args):
     # setup up the logs and models
@@ -60,21 +60,21 @@ def train(args):
             save_images(sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg"))
             torch.save(model.module.state_dict(), os.path.join("models", args.run_name, f"ckpt.pt"))
 
-def main(rank, world_size, config):
-    ddp_setup(rank, world_size)
-    train(config)
+def main(args):
+    ddp_setup()
+    train(args)
     destroy_process_group()
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    config = parser.parse_args()
-    config.run_name = "DDPM_Uncoditional"
-    config.epochs = 500
-    config.batch_size = 12
-    config.img_size = 64
-    config.ddp = True
-    config.lr = 3e-4
-
-    world_size = torch.cuda.device_count()
-    mp.spawn(main, args=(world_size, config), nprocs=world_size)
+    args = parser.parse_args()
+    args.run_name = "DDPM_Uncoditional"
+    args.epochs = 500
+    args.batch_size = 12
+    args.img_size = 64
+    args.ddp = True
+    args.gpu_id = LOCAL_RANK
+    args.lr = 3e-4
+    
+    main(args)
