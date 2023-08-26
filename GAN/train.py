@@ -3,7 +3,18 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision import transforms
-from gan_implementation import *
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+import os
+from model import *
+
+def setup_logging(run_name):
+    os.makedirs("GAN", "models", exist_ok=True)
+    os.makedirs("GAN", "results", exist_ok=True)
+    os.makedirs("GAN", "images", exist_ok=True)
+    os.makedirs(os.path.join("GAN", "models", run_name), exist_ok=True)
+    os.makedirs(os.path.join("GAN", "results", run_name), exist_ok=True)
+    os.makedirs(os.path.join("GAN", "images", run_name), exist_ok=True)
 
 def load_training_objects():
     # load the MNIST handwritten dataset
@@ -13,7 +24,7 @@ def load_training_objects():
         download=True,
         transform=transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.5, ), (0.5, )) # normalize the three channels
+            transforms.Normalize((0.5, ), (0.5, ), (0.5, )) # normalize the three channels
         ]) 
     )
     # load the model
@@ -22,12 +33,12 @@ def load_training_objects():
     discriminator = Discriminator(d_input_dim=28**2, h_input_dim=256, dropout=0.1)
 
     # load the optimizer
-    D_optimizer = torch.optim.Adam(discriminator.parameters(), lr=0.0002)
-    G_optimizer = torch.optim.Adam(generator.parameters(), lr=0.0002)
+    D_optimizer = torch.optim.Adam(discriminator.parameters(), lr=2e-4)
+    G_optimizer = torch.optim.Adam(generator.parameters(), lr=2e-4)
 
     return train_dataset, generator, discriminator, D_optimizer, G_optimizer
 
-def D_train(x_real, D_optimizer, D, G):
+def D_train(x_real, D_optimizer, D, G, device):
     # send the data batch into the gpu
     x_real = x_real.flatten(start_dim=1).to(device)
 
@@ -53,7 +64,7 @@ def D_train(x_real, D_optimizer, D, G):
 
     return D_loss.data.item()
 
-def G_train(G_optimizer, D, G, batch_size):
+def G_train(G_optimizer, D, G, batch_size, device):
     # clear out the gradients
     G_optimizer.zero_grad(set_to_none=True)
 
@@ -72,6 +83,7 @@ def G_train(G_optimizer, D, G, batch_size):
     return G_loss.data.item()
 
 def train(
+        run_name,
         total_epochs: int,
         G,
         D,
@@ -81,9 +93,13 @@ def train(
         device
 ):
     
+    setup_logging(run_name)
     # send the model to the gpu
     G.to(device)
     D.to(device)
+    
+    # log the loss values
+    logger = SummaryWriter(os.path.join("runs", run_name))
 
     for epoch in range(total_epochs):
         # turn the training mode on
@@ -94,41 +110,55 @@ def train(
         D_loss = []
         G_loss = []
 
+        # progress bar
+        pbar = tqdm(train_loader)
+
         # loop through each batch
-        for x_real, _ in train_loader:
+        for i, (x_real, _) in enumerate(pbar):
 
             # send the data batch into the gpu
             x_real = x_real.flatten(start_dim=1).to(device)
 
-            D_loss.append(D_train(x_real, D_optimizer, D, G)) # train the discriminator and output loss
-            G_loss.append(G_train(G_optimizer, D, G, x_real.shape[0]))
+            # loss
+            dloss = D_train(x_real, D_optimizer, D, G, device)
+            gloss = G_train(G_optimizer, D, G, x_real.shape[0], device)
 
-        print(f"Epoch {epoch} | Avg G_loss: {sum(G_loss)/len(G_loss)} | Avg D_loss: {sum(D_loss)/len(D_loss)}")
+            D_loss.append(dloss) # train the discriminator and output loss
+            G_loss.append(gloss)
 
-        if epoch + 1 % 25 == 0:
+            pbar.set_postfix(gloss=gloss, dloss=dloss)
+
+        avg_gloss = sum(G_loss)/len(G_loss)
+        avg_dloss = sum(D_loss)/len(D_loss)
+        logger.add_scalar("Generator Loss", avg_gloss, global_step=epoch)
+        logger.add_scalar("Discriminator Loss", avg_dloss, global_step=epoch)
+
+        if (epoch == 0) or (epoch + 1 == total_epochs):
             # save the dictionary
             checkpoint = G.state_dict()
-            PATH = "checkpoint.pt"
+            PATH = os.path.join("models", run_name, "ckpt.pt")
             torch.save(checkpoint, PATH)
             print(f"Epoch {epoch} | Training checkpoint saved at {PATH}")
             
             # save the image results
             G.eval()
-            gen_img = G(torch.randn(128), 0.2)
-            plt.imsave(f"{epoch}-result.png", gen_img.reshape(28, 28).detach(), cmap="gray")
+            images_path = os.path.join("images", run_name, f"image_{epoch + 1}.png")
+            gen_img = G(torch.randn(128).to(device), 0.2)
+            plt.imsave(images_path, gen_img.reshape(28, 28).detach(), cmap="gray")
             
 
 def main(gpu, total_epochs, batch_size):
     train_dataset, generator, discriminator, D_optimizer, G_optimizer = load_training_objects()
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    train(total_epochs, generator, discriminator, G_optimizer, D_optimizer, train_loader, gpu)
+    train("gan_implementation", total_epochs, generator, discriminator, G_optimizer, D_optimizer, train_loader, gpu)
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='simple distributed training job')
     parser.add_argument('--epochs', type=int, help='Total epochs to train the model')
-    parser.add_argument('--batch_size', default=32, type=int, help='Input batch size on each device (default: 32)')
+    parser.add_argument('--batch_size', default=64, type=int, help='Input batch size on each device (default: 32)')
     args = parser.parse_args()
+    args.epochs = 10
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # its 'mps' for mac m1
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps") # its 'mps' for mac m1
     main(device, args.epochs, args.batch_size)

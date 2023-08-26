@@ -5,7 +5,6 @@ import torch
 from torchvision import transforms
 from torchvision.datasets import MNIST
 from model import *
-from utils import *
 
 def load_training_objs():
     # load the MNIST handwritten dataset
@@ -16,7 +15,7 @@ def load_training_objs():
         transform=transforms.Compose([
             transforms.Resize(64),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, ), (0.5, )) # normalize
+            transforms.Normalize((0.5, ), (0.5, ), (0.5, )) # normalize
         ]) 
     )
     # initiate the configs
